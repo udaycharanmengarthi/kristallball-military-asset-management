@@ -1,16 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, Loader2 } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  ArrowLeftRight,
+  Loader2,
+} from "lucide-react";
+
 import {
   transferApi,
   baseApi,
   equipmentApi,
 } from "../services/resources";
+
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../components/Toast";
+
 import Panel from "../components/Panel";
 import Button from "../components/Button";
 import DataTable from "../components/DataTable";
 import Badge from "../components/Badge";
+
 import {
   formatNumber,
   formatDate,
@@ -34,10 +46,16 @@ export default function Transfers() {
   const [loading, setLoading] = useState(true);
   const [loadingForm, setLoadingForm] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  const [baseError, setBaseError] = useState("");
+  const [equipmentError, setEquipmentError] = useState("");
   const [error, setError] = useState("");
 
-  const canCreate = CAN_CREATE.includes(user?.role);
-  const isCommander = user?.role === "BASE_COMMANDER";
+  const canCreate =
+    CAN_CREATE.includes(user?.role);
+
+  const isCommander =
+    user?.role === "BASE_COMMANDER";
 
   const [form, setForm] = useState({
     sourceBaseId: "",
@@ -48,11 +66,12 @@ export default function Transfers() {
   });
 
   /*
-   * The backend auth response uses user.baseId.
-   * Normalize it once so string/number mismatches cannot break filtering.
+   * Normalize the authenticated user's baseId.
    */
   const commanderBaseId = useMemo(() => {
-    if (!isCommander) return "";
+    if (!isCommander) {
+      return "";
+    }
 
     if (
       user?.baseId === null ||
@@ -66,17 +85,23 @@ export default function Transfers() {
   }, [user, isCommander]);
 
   /*
-   * The actual assigned base for the commander.
+   * Find the actual base from the full base list.
    */
   const commanderBase = useMemo(() => {
-    if (!isCommander || !commanderBaseId) {
+    if (
+      !isCommander ||
+      !commanderBaseId
+    ) {
       return null;
     }
 
-    return allBases.find(
-      (base) =>
-        String(base.id) === commanderBaseId
-    ) || null;
+    return (
+      allBases.find(
+        (base) =>
+          String(base.id) ===
+          commanderBaseId
+      ) || null
+    );
   }, [
     allBases,
     commanderBaseId,
@@ -84,9 +109,9 @@ export default function Transfers() {
   ]);
 
   /*
-   * Source options:
-   * Commander -> exactly their assigned base
-   * Admin/Logistics -> every base
+   * Source bases:
+   * Commander -> only assigned base.
+   * Admin/Logistics -> all bases.
    */
   const sourceBases = useMemo(() => {
     if (!isCommander) {
@@ -103,14 +128,10 @@ export default function Transfers() {
   ]);
 
   /*
-   * Destination options:
-   * Always every base except the selected source.
+   * Destination bases:
+   * every base except selected source.
    */
   const destinationBases = useMemo(() => {
-    if (!allBases.length) {
-      return [];
-    }
-
     return allBases.filter(
       (base) =>
         String(base.id) !==
@@ -122,59 +143,87 @@ export default function Transfers() {
   ]);
 
   /*
-   * Load bases and equipment exactly once.
+   * LOAD BASES
+   *
+   * IMPORTANT:
+   * This request is independent from equipment.
    */
   useEffect(() => {
     let cancelled = false;
 
-    async function loadFormData() {
-      setLoadingForm(true);
-
+    async function loadBases() {
       try {
-        const [
-          basesResponse,
-          equipmentResponse,
-        ] = await Promise.all([
-          baseApi.list(),
-          equipmentApi.list(),
-        ]);
+        setBaseError("");
 
-        if (cancelled) return;
+        const response =
+          await baseApi.list();
+
+        if (cancelled) {
+          return;
+        }
+
+        console.log(
+          "========== BASE API =========="
+        );
+
+        console.log(
+          "STATUS:",
+          response?.status
+        );
+
+        console.log(
+          "RAW:",
+          response?.data
+        );
+
+        console.log(
+          "BASE DATA:",
+          response?.data?.data
+        );
+
+        console.log(
+          "=============================="
+        );
 
         const bases =
-          basesResponse?.data?.data ?? [];
+          response?.data?.data;
 
-        const equipment =
-          equipmentResponse?.data?.data ?? [];
+        if (!Array.isArray(bases)) {
+          throw new Error(
+            "Invalid /api/bases response"
+          );
+        }
 
-        setAllBases(
-          Array.isArray(bases) ? bases : []
-        );
-
-        setEquipmentTypes(
-          Array.isArray(equipment)
-            ? equipment
-            : []
-        );
+        setAllBases(bases);
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         console.error(
-          "Failed to load transfer form data:",
+          "FAILED TO LOAD BASES:",
           err
         );
 
-        setError(
-          "Failed to load bases or equipment."
+        console.error(
+          "BASE STATUS:",
+          err?.response?.status
         );
-      } finally {
-        if (!cancelled) {
-          setLoadingForm(false);
-        }
+
+        console.error(
+          "BASE RESPONSE:",
+          err?.response?.data
+        );
+
+        setAllBases([]);
+
+        setBaseError(
+          "Unable to load bases."
+        );
       }
     }
 
-    loadFormData();
+    loadBases();
 
     return () => {
       cancelled = true;
@@ -182,8 +231,119 @@ export default function Transfers() {
   }, []);
 
   /*
-   * Set the commander's source base after
-   * both user and bases are available.
+   * LOAD EQUIPMENT INDEPENDENTLY
+   *
+   * A failure here must NOT prevent bases
+   * from appearing.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEquipment() {
+      try {
+        setEquipmentError("");
+
+        const response =
+          await equipmentApi.list();
+
+        if (cancelled) {
+          return;
+        }
+
+        console.log(
+          "====== EQUIPMENT API ======"
+        );
+
+        console.log(
+          "STATUS:",
+          response?.status
+        );
+
+        console.log(
+          "RAW:",
+          response?.data
+        );
+
+        console.log(
+          "EQUIPMENT DATA:",
+          response?.data?.data
+        );
+
+        console.log(
+          "==========================="
+        );
+
+        const equipment =
+          response?.data?.data;
+
+        if (!Array.isArray(equipment)) {
+          throw new Error(
+            "Invalid /api/equipment-types response"
+          );
+        }
+
+        setEquipmentTypes(equipment);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          "FAILED TO LOAD EQUIPMENT:",
+          err
+        );
+
+        console.error(
+          "EQUIPMENT STATUS:",
+          err?.response?.status
+        );
+
+        console.error(
+          "EQUIPMENT RESPONSE:",
+          err?.response?.data
+        );
+
+        setEquipmentTypes([]);
+
+        setEquipmentError(
+          "Unable to load equipment types."
+        );
+      }
+    }
+
+    loadEquipment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /*
+   * Form loading is complete when the two independent
+   * requests have had a chance to complete.
+   */
+  useEffect(() => {
+    /*
+     * Small delay isn't needed for correctness, but keeping
+     * loading until either data has arrived makes the UI cleaner.
+     */
+    if (
+      allBases.length > 0 ||
+      equipmentTypes.length > 0 ||
+      baseError ||
+      equipmentError
+    ) {
+      setLoadingForm(false);
+    }
+  }, [
+    allBases,
+    equipmentTypes,
+    baseError,
+    equipmentError,
+  ]);
+
+  /*
+   * Set source base automatically for commanders.
    */
   useEffect(() => {
     if (!isCommander) {
@@ -195,53 +355,58 @@ export default function Transfers() {
         ...current,
         sourceBaseId: "",
       }));
+
       return;
     }
 
     if (!commanderBase) {
-      console.error(
-        "Commander baseId does not match any base.",
-        {
-          user,
-          commanderBaseId,
-          allBases,
-        }
-      );
-
-      setForm((current) => ({
-        ...current,
-        sourceBaseId: "",
-      }));
+      /*
+       * Don't spam console continuously while the bases
+       * request is still loading.
+       */
+      if (!loadingForm) {
+        console.error(
+          "Commander baseId does not match any loaded base.",
+          {
+            user,
+            commanderBaseId,
+            allBases,
+          }
+        );
+      }
 
       return;
     }
 
-    setForm((current) => {
-      const nextSourceBaseId =
-        String(commanderBase.id);
+    const sourceId =
+      String(commanderBase.id);
 
+    setForm((current) => {
       if (
-        String(current.sourceBaseId) ===
-        nextSourceBaseId
+        String(
+          current.sourceBaseId
+        ) === sourceId
       ) {
         return current;
       }
 
       return {
         ...current,
-        sourceBaseId: nextSourceBaseId,
+        sourceBaseId: sourceId,
+        destinationBaseId: "",
       };
     });
   }, [
     isCommander,
     commanderBaseId,
     commanderBase,
+    loadingForm,
     user,
     allBases,
   ]);
 
   /*
-   * Load transfer history.
+   * Load transfer history separately.
    */
   async function loadTransfers() {
     setLoading(true);
@@ -254,13 +419,17 @@ export default function Transfers() {
         response?.data?.data ?? [];
 
       setTransfers(
-        Array.isArray(rows) ? rows : []
+        Array.isArray(rows)
+          ? rows
+          : []
       );
     } catch (err) {
       console.error(
-        "Failed to load transfers:",
+        "FAILED TO LOAD TRANSFERS:",
         err
       );
+
+      setTransfers([]);
     } finally {
       setLoading(false);
     }
@@ -272,6 +441,7 @@ export default function Transfers() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     setError("");
 
     const sourceBaseId =
@@ -286,9 +456,6 @@ export default function Transfers() {
     const quantity =
       Number(form.quantity);
 
-    /*
-     * Required fields.
-     */
     if (
       !form.sourceBaseId ||
       !Number.isFinite(sourceBaseId)
@@ -337,9 +504,6 @@ export default function Transfers() {
       return;
     }
 
-    /*
-     * Same-base validation.
-     */
     if (
       sourceBaseId ===
       destinationBaseId
@@ -353,8 +517,7 @@ export default function Transfers() {
     }
 
     /*
-     * Client-side RBAC validation.
-     * Backend still performs the real authorization.
+     * Commander source authorization.
      */
     if (
       isCommander &&
@@ -387,9 +550,10 @@ export default function Transfers() {
 
       setForm((current) => ({
         ...current,
-        sourceBaseId: isCommander
-          ? commanderBaseId
-          : current.sourceBaseId,
+        sourceBaseId:
+          isCommander
+            ? commanderBaseId
+            : current.sourceBaseId,
         destinationBaseId: "",
         equipmentTypeId: "",
         quantity: "",
@@ -398,8 +562,18 @@ export default function Transfers() {
       await loadTransfers();
     } catch (err) {
       console.error(
-        "Transfer failed:",
+        "TRANSFER FAILED:",
         err
+      );
+
+      console.error(
+        "STATUS:",
+        err?.response?.status
+      );
+
+      console.error(
+        "RESPONSE:",
+        err?.response?.data
       );
 
       const message =
@@ -418,25 +592,30 @@ export default function Transfers() {
       key: "transferDate",
       header: "Date",
       render: (row) =>
-        formatDate(row.transferDate),
+        formatDate(
+          row.transferDate
+        ),
     },
     {
       key: "sourceBase",
       header: "From",
       render: (row) =>
-        row.sourceBase?.name || "—",
+        row.sourceBase?.name ||
+        "—",
     },
     {
       key: "destinationBase",
       header: "To",
       render: (row) =>
-        row.destinationBase?.name || "—",
+        row.destinationBase?.name ||
+        "—",
     },
     {
       key: "equipment",
       header: "Equipment",
       render: (row) =>
-        row.equipmentType?.name || "—",
+        row.equipmentType?.name ||
+        "—",
     },
     {
       key: "quantity",
@@ -444,7 +623,9 @@ export default function Transfers() {
       align: "right",
       mono: true,
       render: (row) =>
-        formatNumber(row.quantity),
+        formatNumber(
+          row.quantity
+        ),
     },
     {
       key: "status",
@@ -465,7 +646,8 @@ export default function Transfers() {
       key: "createdBy",
       header: "Initiated By",
       render: (row) =>
-        row.createdBy?.username || "—",
+        row.createdBy?.username ||
+        "—",
     },
   ];
 
@@ -478,7 +660,8 @@ export default function Transfers() {
 
         <p className="mt-0.5 text-sm text-mist-400">
           Move equipment between bases —
-          executed as a single atomic transaction
+          executed as a single atomic
+          transaction
         </p>
       </div>
 
@@ -506,12 +689,14 @@ export default function Transfers() {
                   form.sourceBaseId
                 }
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    sourceBaseId:
-                      event.target.value,
-                    destinationBaseId: "",
-                  }))
+                  setForm(
+                    (current) => ({
+                      ...current,
+                      sourceBaseId:
+                        event.target.value,
+                      destinationBaseId: "",
+                    })
+                  )
                 }
                 className="form-input"
               >
@@ -556,23 +741,30 @@ export default function Transfers() {
             <Field label="Destination Base">
               <select
                 required
-                disabled={loadingForm}
+                disabled={
+                  loadingForm ||
+                  allBases.length === 0
+                }
                 value={
                   form.destinationBaseId
                 }
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    destinationBaseId:
-                      event.target.value,
-                  }))
+                  setForm(
+                    (current) => ({
+                      ...current,
+                      destinationBaseId:
+                        event.target.value,
+                    })
+                  )
                 }
                 className="form-input"
               >
                 <option value="">
                   {loadingForm
                     ? "Loading bases..."
-                    : "Select destination…"}
+                    : baseError
+                      ? "Unable to load bases"
+                      : "Select destination…"}
                 </option>
 
                 {destinationBases.map(
@@ -594,22 +786,29 @@ export default function Transfers() {
               <select
                 required
                 disabled={
-                  loadingForm
+                  loadingForm ||
+                  equipmentTypes.length === 0
                 }
                 value={
                   form.equipmentTypeId
                 }
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    equipmentTypeId:
-                      event.target.value,
-                  }))
+                  setForm(
+                    (current) => ({
+                      ...current,
+                      equipmentTypeId:
+                        event.target.value,
+                    })
+                  )
                 }
                 className="form-input"
               >
                 <option value="">
-                  Select equipment…
+                  {loadingForm
+                    ? "Loading equipment..."
+                    : equipmentError
+                      ? "Unable to load equipment"
+                      : "Select equipment…"}
                 </option>
 
                 {equipmentTypes.map(
@@ -634,11 +833,13 @@ export default function Transfers() {
                 required
                 value={form.quantity}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    quantity:
-                      event.target.value,
-                  }))
+                  setForm(
+                    (current) => ({
+                      ...current,
+                      quantity:
+                        event.target.value,
+                    })
+                  )
                 }
                 className="form-input"
                 placeholder="0"
@@ -653,11 +854,13 @@ export default function Transfers() {
                   form.transferDate
                 }
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    transferDate:
-                      event.target.value,
-                  }))
+                  setForm(
+                    (current) => ({
+                      ...current,
+                      transferDate:
+                        event.target.value,
+                    })
+                  )
                 }
                 className="form-input"
               />
@@ -686,6 +889,18 @@ export default function Transfers() {
             </div>
           </form>
 
+          {baseError && (
+            <p className="mt-3 text-sm text-rust-400">
+              {baseError}
+            </p>
+          )}
+
+          {equipmentError && (
+            <p className="mt-1 text-sm text-rust-400">
+              {equipmentError}
+            </p>
+          )}
+
           {error && (
             <p className="mt-3 text-sm text-rust-400">
               {error}
@@ -706,13 +921,15 @@ export default function Transfers() {
   );
 }
 
-function Field({ label, children }) {
+function Field({
+  label,
+  children,
+}) {
   return (
     <label className="block">
       <span className="mb-1.5 block font-mono text-[11px] uppercase tracking-widest2 text-mist-400">
         {label}
       </span>
-
       {children}
     </label>
   );
