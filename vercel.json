@@ -8,7 +8,7 @@
     "backend": {
       "root": "backend/",
       "framework": "express",
-      "entrypoint": "src/app.js"
+      "entrypoint": "api/index.js"
     }
   },
   "rewrites": [
