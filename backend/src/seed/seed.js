@@ -19,9 +19,7 @@ async function seed() {
       AppDataSource.getRepository(Base);
 
     const equipmentRepo =
-      AppDataSource.getRepository(
-        EquipmentType
-      );
+      AppDataSource.getRepository(EquipmentType);
 
     const userRepo =
       AppDataSource.getRepository(User);
@@ -36,87 +34,195 @@ async function seed() {
     // BASES
     // ==================================================
 
+    console.log("Seeding bases...");
+
+    const baseDefs = [
+      {
+        name: "Fort Alpha",
+        code: "FALPHA",
+        location: "Sector 1",
+      },
+      {
+        name: "Fort Bravo",
+        code: "FBRAVO",
+        location: "Sector 2",
+      },
+      {
+        name: "Fort Charlie",
+        code: "FCHARLIE",
+        location: "Sector 3",
+      },
+    ];
+
+    const bases = {};
+
+    for (const def of baseDefs) {
+      let base = await baseRepo.findOne({
+        where: {
+          code: def.code,
+        },
+      });
+
+      if (!base) {
+        base = baseRepo.create(def);
+        base = await baseRepo.save(base);
+
+        console.log(
+          `  created base ${def.name}`
+        );
+      } else {
+        base.name = def.name;
+        base.location = def.location;
+
+        await baseRepo.save(base);
+
+        console.log(
+          `  updated base ${def.name}`
+        );
+      }
+
+      bases[def.name] = base;
+    }
+
+    // ==================================================
+    // EQUIPMENT TYPES
+    // ==================================================
+
+    console.log(
+      "Seeding equipment types..."
+    );
+
+    const equipmentDefs = [
+      {
+        name: "M4 Carbine",
+        category: "WEAPON",
+        unit: "unit",
+      },
+      {
+        name: "Humvee",
+        category: "VEHICLE",
+        unit: "unit",
+      },
+      {
+        name: "5.56mm Ammunition",
+        category: "AMMUNITION",
+        unit: "round",
+      },
+    ];
+
+    const equipment = {};
+
+    for (const def of equipmentDefs) {
+      let eq = await equipmentRepo.findOne({
+        where: {
+          name: def.name,
+        },
+      });
+
+      if (!eq) {
+        eq = equipmentRepo.create(def);
+        eq = await equipmentRepo.save(eq);
+
+        console.log(
+          `  created equipment ${def.name}`
+        );
+      } else {
+        eq.category = def.category;
+        eq.unit = def.unit;
+
+        await equipmentRepo.save(eq);
+
+        console.log(
+          `  updated equipment ${def.name}`
+        );
+      }
+
+      equipment[def.name] = eq;
+    }
+
+    // ==================================================
+    // USERS
+    // ==================================================
+
     console.log("Seeding users...");
 
-const userDefs = [
-  {
-    username: "admin_user",
-    password: "AdminPass123!",
-    fullName: "System Administrator",
-    role: "ADMIN",
-    baseId: null,
-  },
-  {
-    username: "commander_alpha",
-    password: "CommandPass123!",
-    fullName: "Commander (Fort Alpha)",
-    role: "BASE_COMMANDER",
-    baseId: bases["Fort Alpha"].id,
-  },
-  {
-    username: "commander_bravo",
-    password: "CommandPass123!",
-    fullName: "Commander (Fort Bravo)",
-    role: "BASE_COMMANDER",
-    baseId: bases["Fort Bravo"].id,
-  },
-  {
-    username: "commander_charlie",
-    password: "CommandPass123!",
-    fullName: "Commander (Fort Charlie)",
-    role: "BASE_COMMANDER",
-    baseId: bases["Fort Charlie"].id,
-  },
-  {
-    username: "logistics_officer",
-    password: "LogisticsPass123!",
-    fullName: "Logistics Officer",
-    role: "LOGISTICS_OFFICER",
-    baseId: null,
-  },
-];
+    const userDefs = [
+      {
+        username: "admin_user",
+        password: "AdminPass123!",
+        fullName: "System Administrator",
+        role: "ADMIN",
+        baseId: null,
+      },
+      {
+        username: "commander_alpha",
+        password: "CommandPass123!",
+        fullName: "Commander (Fort Alpha)",
+        role: "BASE_COMMANDER",
+        baseId: bases["Fort Alpha"].id,
+      },
+      {
+        username: "commander_bravo",
+        password: "CommandPass123!",
+        fullName: "Commander (Fort Bravo)",
+        role: "BASE_COMMANDER",
+        baseId: bases["Fort Bravo"].id,
+      },
+      {
+        username: "commander_charlie",
+        password: "CommandPass123!",
+        fullName: "Commander (Fort Charlie)",
+        role: "BASE_COMMANDER",
+        baseId: bases["Fort Charlie"].id,
+      },
+      {
+        username: "logistics_officer",
+        password: "LogisticsPass123!",
+        fullName: "Logistics Officer",
+        role: "LOGISTICS_OFFICER",
+        baseId: null,
+      },
+    ];
 
-for (const def of userDefs) {
-  const passwordHash = await bcrypt.hash(
-    def.password,
-    10
-  );
+    for (const def of userDefs) {
+      const passwordHash =
+        await bcrypt.hash(def.password, 10);
 
-  let user = await userRepo.findOne({
-    where: {
-      username: def.username,
-    },
-  });
+      let user = await userRepo.findOne({
+        where: {
+          username: def.username,
+        },
+      });
 
-  if (!user) {
-    user = userRepo.create({
-      username: def.username,
-      passwordHash,
-      fullName: def.fullName,
-      role: def.role,
-      baseId: def.baseId,
-      isActive: true,
-    });
+      if (!user) {
+        user = userRepo.create({
+          username: def.username,
+          passwordHash,
+          fullName: def.fullName,
+          role: def.role,
+          baseId: def.baseId,
+          isActive: true,
+        });
 
-    await userRepo.save(user);
+        await userRepo.save(user);
 
-    console.log(
-      `  created ${def.username}`
-    );
-  } else {
-    user.passwordHash = passwordHash;
-    user.fullName = def.fullName;
-    user.role = def.role;
-    user.baseId = def.baseId;
-    user.isActive = true;
+        console.log(
+          `  created ${def.username}`
+        );
+      } else {
+        user.passwordHash = passwordHash;
+        user.fullName = def.fullName;
+        user.role = def.role;
+        user.baseId = def.baseId;
+        user.isActive = true;
 
-    await userRepo.save(user);
+        await userRepo.save(user);
 
-    console.log(
-      `  reset ${def.username}`
-    );
-  }
-}
+        console.log(
+          `  reset ${def.username}`
+        );
+      }
+    }
 
     // ==================================================
     // DEMO INVENTORY
@@ -254,7 +360,6 @@ for (const def of userDefs) {
         where: {
           baseId:
             bases["Fort Alpha"].id,
-
           equipmentTypeId:
             equipment["M4 Carbine"].id,
         },
@@ -265,17 +370,13 @@ for (const def of userDefs) {
         purchaseRepo.create({
           baseId:
             bases["Fort Alpha"].id,
-
           equipmentTypeId:
             equipment["M4 Carbine"].id,
-
           quantity: 50,
-
           purchaseDate:
             new Date()
               .toISOString()
               .slice(0, 10),
-
           createdById:
             adminUser.id,
         })
@@ -286,7 +387,6 @@ for (const def of userDefs) {
           where: {
             baseId:
               bases["Fort Alpha"].id,
-
             equipmentTypeId:
               equipment["M4 Carbine"].id,
           },
