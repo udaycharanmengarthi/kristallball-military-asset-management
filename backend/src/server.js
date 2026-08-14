@@ -1,3 +1,6 @@
+require("dotenv").config();
+require("reflect-metadata");
+
 const { AppDataSource } = require("./config/db");
 const app = require("./app");
 
@@ -7,7 +10,7 @@ function getDatabaseHost() {
   try {
     return new URL(process.env.DATABASE_URL).hostname;
   } catch {
-    return "INVALID_OR_MISSING_DATABASE_URL";
+    return "MISSING_OR_INVALID";
   }
 }
 
@@ -25,11 +28,7 @@ async function start() {
       );
     });
   } catch (err) {
-    console.error(
-      "Failed to start server",
-      err
-    );
-
+    console.error("Failed to start server", err);
     process.exit(1);
   }
 }

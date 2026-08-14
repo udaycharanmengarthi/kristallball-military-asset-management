@@ -1,5 +1,5 @@
 require("reflect-metadata");
-require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -15,24 +15,35 @@ const assignmentRoutes = require("./routes/assignmentRoutes");
 const expenditureRoutes = require("./routes/expenditureRoutes");
 const auditRoutes = require("./routes/auditRoutes");
 
-const { errorMiddleware, notFoundMiddleware } = require("./middlewares/errorMiddleware");
+const {
+  errorMiddleware,
+  notFoundMiddleware,
+} = require("./middlewares/errorMiddleware");
 
 const app = express();
 
 app.use(helmet());
+
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "*",
     credentials: true,
   })
 );
+
 app.use(express.json());
+
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("dev"));
 }
 
 app.get("/api/health", (req, res) => {
-  res.json({ success: true, data: { status: "ok" } });
+  res.json({
+    success: true,
+    data: {
+      status: "ok",
+    },
+  });
 });
 
 app.use("/api/auth", authRoutes);
