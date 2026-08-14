@@ -1,5 +1,5 @@
 require("reflect-metadata");
-require("dotenv").config();
+
 const { DataSource } = require("typeorm");
 
 const User = require("../entities/User");
@@ -15,10 +15,10 @@ const AuditLog = require("../entities/AuditLog");
 const AppDataSource = new DataSource({
   type: "postgres",
   url: process.env.DATABASE_URL,
-  // Synchronize is convenient for this assessment/demo. In a real production
-  // deployment this should be replaced by versioned migrations.
+
   synchronize: true,
   logging: false,
+
   entities: [
     User,
     Base,
@@ -32,4 +32,6 @@ const AppDataSource = new DataSource({
   ],
 });
 
-module.exports = { AppDataSource };
+module.exports = {
+  AppDataSource,
+};
